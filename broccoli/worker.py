@@ -243,15 +243,15 @@ class Prefork(Worker):
                 try:
                     try:
                         task_name, request, args, kwargs = app.get_task(queues)
-                        # there is a chance to lose the request here,
+                        # there is a chance to lose the request here
                         # when the worker stops
+                        can_raise = None
                     except BrokerError:
                         if emit_broker_error:
                             emit('broker_error')
                         time.sleep(error_timeout)
                         continue
 
-                    can_raise = None
                     try:
                         task_class = app.tasks[task_name]
                     except KeyError:
