@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+mypy broccoli --ignore-missing-imports
