@@ -30,15 +30,21 @@ class Prefork(Worker):
                             help='Comma separated list of worker queues.')
         parser.add_argument('--error_timeout',
                             dest='error_timeout',
-                            type=int,
+                            type=float,
                             default=10,
+                            help='Timeout after error.')
+        parser.add_argument('--fetch_timeout',
+                            dest='fetch_timeout',
+                            type=float,
+                            default=0,
                             help='Timeout after error.')
 
     def __init__(self, *,
                  app: App,
                  concurrency: int,
-                 error_timeout: int,
                  logger: typing.Union[logging.Logger, Logger],
+                 error_timeout: float=10,
+                 fetch_timeout: float=0,
                  queues: typing.List[QueueName]=['default'],
                  plugins: typing.List[Plugin]=[],
                  **kwargs) -> None:
@@ -48,6 +54,7 @@ class Prefork(Worker):
         self.plugins = plugins
         self.concurrency = concurrency
         self.error_timeout = error_timeout
+        self.fetch_timeout = fetch_timeout
         if self.concurrency <= 0:
             self.concurrency = mp.cpu_count()
 
@@ -55,13 +62,15 @@ class Prefork(Worker):
         return {
             'concurrency': self.concurrency,
             'queues': self.queues,
-            'error_timeout': self.error_timeout
+            'error_timeout': self.error_timeout,
+            'fetch_timeout': self.fetch_timeout
         }
 
     def start_worker(self):
         c1, c2 = mp.Pipe()
         events = list(self.plugin_handlers.keys())
-        args = (c2, self.app, self.queues, events, self.error_timeout)
+        args = (c2, self.app, self.queues, events,
+                self.error_timeout, self.fetch_timeout)
         proc = mp.Process(target=self.init_and_run_worker, args=args)
         proc.start()
         c1.proc = proc
@@ -182,7 +191,8 @@ class Prefork(Worker):
                             app: App,
                             queues: typing.List[QueueName],
                             events: typing.List[str],
-                            error_timeout: int):
+                            error_timeout: float,
+                            fetch_timeout: float):
         WORKER_INTERRUPT = 'worker'
         TASK_INTERRUPT = 'task'
         can_raise = None
@@ -242,15 +252,22 @@ class Prefork(Worker):
                 can_raise = WORKER_INTERRUPT
                 try:
                     try:
-                        task_name, request, args, kwargs = app.get_task(queues)
+                        if fetch_timeout > 0:
+                            can_raise = None
+                        ret = app.get_task(queues, fetch_timeout)
                         # there is a chance to lose the request here
-                        # when the worker stops
+                        # when the worker stops and fetch_timeout == 0
                         can_raise = None
                     except BrokerError:
                         if emit_broker_error:
                             emit('broker_error')
                         time.sleep(error_timeout)
                         continue
+
+                    if ret is None:
+                        continue
+
+                    task_name, request, args, kwargs = ret
 
                     try:
                         task_class = app.tasks[task_name]

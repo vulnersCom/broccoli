@@ -12,7 +12,7 @@ from . interfaces import App, Plugin, Logger
 from . utils import cached_property, rewind
 
 
-class Logging(Plugin):
+class MasterLogger(Plugin):
 
     def __init__(self,
                  logger: typing.Union[logging.Logger, Logger],

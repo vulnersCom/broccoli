@@ -70,7 +70,7 @@ def main():
     if 'plugins' in args:
         plugins = args.plugins
     else:
-        plugins = app.conf.get('plugins', ['Logging'])
+        plugins = app.conf.get('plugins', ['MasterLogger'])
 
     plugin_classes = []
     for plugin in plugins:

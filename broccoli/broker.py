@@ -48,8 +48,8 @@ class RedisBroker(Broker):
     def put_task_req(self, queue: QueueName, req: typing.Any) -> None:
         try:
             self.redis.rpush('queue.' + queue, self._dumps(req))
-        except self.errors:
-            raise BrokerError() from None
+        except self.errors as e:
+            raise BrokerError(str(e)) from None
 
     def get_task_req(self,
                      queues: typing.List[QueueName],
@@ -57,8 +57,8 @@ class RedisBroker(Broker):
         queues = ['queue.' + q for q in queues]
         try:
             req = self.redis.brpop(queues, timeout)
-        except self.errors:
-            raise BrokerError() from None
+        except self.errors as e:
+            raise BrokerError(str(e)) from None
         if req is not None:
             return self._loads(req[1])
         return None
@@ -71,14 +71,14 @@ class RedisBroker(Broker):
                        .rpush(key, value)
                        .expire(key, self.result_expires)
                        .execute())
-        except self.errors:
-            raise BrokerError() from None
+        except self.errors as e:
+            raise BrokerError(str(e)) from None
 
     def get_result(self, task_id: TaskId, timeout: float=0) -> typing.Any:
         try:
             ret = self.redis.brpop('result.%s' % task_id, timeout)
-        except self.errors:
-            raise BrokerError() from None
+        except self.errors as e:
+            raise BrokerError(str(e)) from None
         if ret is not None:
             return self._loads(ret[1])
         return None
